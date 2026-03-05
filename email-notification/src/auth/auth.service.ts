@@ -1,4 +1,5 @@
 import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
 import * as bcrypt from 'bcrypt';
@@ -7,46 +8,47 @@ import * as nodemailer from "nodemailer";
 
 @Injectable()
 export class AuthService {
-    constructor(
-        private usersService: UsersService,
-        private jwtService: JwtService
-    ) { }
+  constructor(
+    private usersService: UsersService,
+    private jwtService: JwtService,
+    private configService: ConfigService,
+  ) { }
 
-    // Register
-    async signUp(username: string, email: string, pass: string): Promise<any> {
-        const existingUser = await this.usersService.findOne(email);
-        if (existingUser) {
-            throw new ConflictException('Email already exists');
-        }
+  // Register
+  async signUp(username: string, email: string, pass: string): Promise<any> {
+    const existingUser = await this.usersService.findOne(email);
+    if (existingUser) {
+      throw new ConflictException('Email already exists');
+    }
 
-        const hashedPassword = await bcrypt.hash(pass, 10);
-        const user = await this.usersService.create({
-            username,
-            email,
-            password: hashedPassword,
-        });
+    const hashedPassword = await bcrypt.hash(pass, 10);
+    const user = await this.usersService.create({
+      username,
+      email,
+      password: hashedPassword,
+    });
 
-        const { password, ...result } = user;
+    const { password, ...result } = user;
 
-        // Create a transporter using Gmail credentials.
-        const transporter = nodemailer.createTransport({
-            host: "smtp.gmail.com",
-            port: 465,
-            secure: true,
-            auth: {
-                user: "shikharnegi01@gmail.com",
-                pass: "zzrg nzjd qqrp fimk",
-            },
-        });
+    // Create a transporter using environment variables.
+    const transporter = nodemailer.createTransport({
+      host: this.configService.get<string>('SMTP_HOST'),
+      port: this.configService.get<number>('SMTP_PORT'),
+      secure: true,
+      auth: {
+        user: this.configService.get<string>('SMTP_USER'),
+        pass: this.configService.get<string>('SMTP_PASS'),
+      },
+    });
 
-        // Send an email
-        try {
-            const info = await transporter.sendMail({
-                from: '"Shikhar Negi" <shikharnegi01@gmail.com>',
-                to: `${result.email}`,
-                subject: "Account Created ✔",
-                text: "Account Created Successfully",
-                html: `
+    // Send an email
+    try {
+      const info = await transporter.sendMail({
+        from: `"${this.configService.get<string>('SMTP_FROM_NAME')}" <${this.configService.get<string>('SMTP_FROM_EMAIL')}>`,
+        to: `${result.email}`,
+        subject: "Account Created ✔",
+        text: "Account Created Successfully",
+        html: `
   <div style="font-family: Arial, sans-serif; background:#f4f6f8; padding:40px;">
     <div style="max-width:600px; margin:auto; background:white; border-radius:10px; overflow:hidden; box-shadow:0 4px 10px rgba(0,0,0,0.1);">
 
@@ -75,28 +77,28 @@ export class AuthService {
     </div>
   </div>
   `,
-            });
+      });
 
-            console.log("Message sent:", info.messageId);
-        } catch (error) {
-            console.error("Error sending email:", error);
-        }
-
-        return result;
+      console.log("Message sent:", info.messageId);
+    } catch (error) {
+      console.error("Error sending email:", error);
     }
 
-    // Login
-    async signIn(
-        email: string,
-        pass: string,
-    ): Promise<{ access_token: string }> {
-        const user = await this.usersService.findOne(email);
-        if (!user || !(await bcrypt.compare(pass, user.password))) {
-            throw new UnauthorizedException('Invalid email or password');
-        }
-        const payload = { sub: user.id, username: user.username, email: user.email };
-        return {
-            access_token: await this.jwtService.signAsync(payload),
-        };
+    return result;
+  }
+
+  // Login
+  async signIn(
+    email: string,
+    pass: string,
+  ): Promise<{ access_token: string }> {
+    const user = await this.usersService.findOne(email);
+    if (!user || !(await bcrypt.compare(pass, user.password))) {
+      throw new UnauthorizedException('Invalid email or password');
     }
+    const payload = { sub: user.id, username: user.username, email: user.email };
+    return {
+      access_token: await this.jwtService.signAsync(payload),
+    };
+  }
 }
