@@ -7,6 +7,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { User } from './users/entities/user.entity';
 
+import { ChatModule } from './chat/chat.module';
+
 @Module({
   imports: [ConfigModule.forRoot({ isGlobal: true }),
   TypeOrmModule.forRootAsync({
@@ -23,7 +25,7 @@ import { User } from './users/entities/user.entity';
       logging: true,
     }),
     inject: [ConfigService],
-  }), AuthModule, UsersModule],
+  }), AuthModule, UsersModule, ChatModule],
   controllers: [AppController],
   providers: [AppService],
 })
